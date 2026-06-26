@@ -7,20 +7,11 @@ namespace hlk_ld2402 {
 
 static const char *const TAG = "hlk_ld2402";
 
-// 添加帧重组相关的成员变量声明
-static std::vector<uint8_t> partial_frame_buffer_;
-static uint32_t last_frame_byte_time_ = 0;
-static const uint32_t FRAME_TIMEOUT_MS = 500;
-
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
-  
-  // Configure UART - explicitly set again
-  auto *parent = (uart::UARTComponent *) this->parent_;
-  parent->set_baud_rate(115200);
-  parent->set_stop_bits(1);
-  parent->set_data_bits(8);
-  parent->set_parity(esphome::uart::UART_CONFIG_PARITY_NONE);
+
+  // 验证UART配置是否正确（115200, 8N1）
+  this->check_uart_settings(115200, 1, uart::UART_CONFIG_PARITY_NONE, 8);
 
   // Try sending some test data to verify TX functionality
   write_str("TEST\n");
@@ -240,8 +231,8 @@ void HLKLD2402Component::loop() {
       char hex_buf[50] = {0};
       char ascii_buf[20] = {0};
       for (int i = 0; i < 16 && i < 64; i++) {
-        sprintf(hex_buf + (i*3), "%02X ", last_bytes[i]);
-        sprintf(ascii_buf + i, "%c", (last_bytes[i] >= 32 && last_bytes[i] < 127) ? last_bytes[i] : '.');
+        snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", last_bytes[i]);
+        snprintf(ascii_buf + i, sizeof(ascii_buf) - i, "%c", (last_bytes[i] >= 32 && last_bytes[i] < 127) ? last_bytes[i] : '.');
       }
       ESP_LOGI(TAG, "Last bytes (hex): %s", hex_buf);
       // ESP_LOGI(TAG, "Free heap now: %u", ESP.getFreeHeap());
@@ -542,7 +533,7 @@ void HLKLD2402Component::loop() {
           // Debug: Show hex representation of binary data
           char hex_buf[128] = {0};
           for (size_t i = 0; i < std::min(line_buffer_.length(), size_t(32)); i++) {
-            sprintf(hex_buf + (i*3), "%02X ", (uint8_t)line_buffer_[i]);
+            snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", (uint8_t)line_buffer_[i]);
           }
           // ESP_LOGD(TAG, "Binary data hex: %s", hex_buf);
         }
@@ -632,7 +623,7 @@ void HLKLD2402Component::loop() {
           // Log the complete response for debugging
           char hex_buf[64] = {0};
           for (size_t i = 0; i < response.size() && i < 16; i++) {
-            sprintf(hex_buf + (i*3), "%02X ", response[i]);
+            snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
           }
           ESP_LOGD(TAG, "Calibration status response: %s", hex_buf);
           
@@ -794,7 +785,7 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
       
       for (size_t i = start; i < end; i++) {
         char hex_buf[4];
-        sprintf(hex_buf, "%02X ", frame_data[i]);
+        snprintf(hex_buf, sizeof(hex_buf), "%02X ", frame_data[i]);
         hex_str += hex_buf;
         
         // 每16字节换行，便于阅读
@@ -1102,7 +1093,7 @@ bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, si
   // Log the frame we're sending for debugging
   char hex_buf[128] = {0};
   for (size_t i = 0; i < frame.size() && i < 40; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", frame[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", frame[i]);
   }
   ESP_LOGI(TAG, "Sending command 0x%04X, frame: %s", command, hex_buf);
   
@@ -1199,7 +1190,7 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
   // Log the response for debugging
   char hex_buf[64] = {0};
   for (size_t i = 0; i < response.size() && i < 16; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGD(TAG, "Get parameter response: %s", hex_buf);
   
@@ -1410,7 +1401,7 @@ void HLKLD2402Component::set_engineering_mode_direct() {
   // 4. Validate the response
   char hex_buf[64] = {0};
   for (size_t i = 0; i < response.size() && i < 16; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGI(TAG, "Engineering mode response: %s", hex_buf);
   
@@ -1569,7 +1560,7 @@ bool HLKLD2402Component::save_configuration_() {
   // Log the complete response for debugging
   char hex_buf[128] = {0};
   for (size_t i = 0; i < response.size() && i < 32; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGI(TAG, "Save config response: %s", hex_buf);
   
@@ -1725,7 +1716,7 @@ bool HLKLD2402Component::get_serial_number_hex_() {
       std::string sn;
       char temp[8];
       for (size_t i = 4; i < 4 + sn_length; i++) {
-        sprintf(temp, "%02X", response[i]);
+        snprintf(temp, sizeof(temp), "%02X", response[i]);
         sn += temp;
       }
       
@@ -1841,7 +1832,7 @@ void HLKLD2402Component::check_power_interference() {
   // Log the response for debugging
   char hex_buf[128] = {0};
   for (size_t i = 0; i < response.size() && i < 30; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGI(TAG, "Power interference response: %s", hex_buf);
   
@@ -1972,7 +1963,7 @@ void HLKLD2402Component::factory_reset_with_params(float max_distance, int timeo
       // Log the response for debugging
       char hex_buf[64] = {0};
       for (size_t i = 0; i < response.size() && i < 16; i++) {
-        sprintf(hex_buf + (i*3), "%02X ", response[i]);
+        snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
       }
       ESP_LOGI(TAG, "Save config response: %s", hex_buf);
       ESP_LOGI(TAG, "Configuration saved successfully");
@@ -2034,7 +2025,7 @@ bool HLKLD2402Component::enter_config_mode_() {
           // Dump the response bytes for debugging
           char hex_buf[128] = {0};
           for (size_t i = 0; i < response.size() && i < 20; i++) {
-            sprintf(hex_buf + (i*3), "%02X ", response[i]);
+            snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
           }
           ESP_LOGI(TAG, "Response: %s", hex_buf);
           
@@ -2152,7 +2143,7 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
   // Log the response for debugging
   char hex_buf[64] = {0};
   for (size_t i = 0; i < response.size() && i < 16; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGD(TAG, "Set parameter response: %s", hex_buf);
   
@@ -2296,7 +2287,7 @@ bool HLKLD2402Component::get_parameters_batch_(const std::vector<uint16_t> &para
   // Log the response for debugging
   char hex_buf[128] = {0};
   for (size_t i = 0; i < response.size() && i < 30; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    snprintf(hex_buf + (i*3), sizeof(hex_buf) - (i*3), "%02X ", response[i]);
   }
   ESP_LOGD(TAG, "Batch parameter response: %s", hex_buf);
   
