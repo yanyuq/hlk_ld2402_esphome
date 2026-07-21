@@ -226,7 +226,7 @@ void HLKLD2402Component::loop() {
 
  // Every 10 seconds, report status
   if (millis() - last_status_time > 10000) {
-    ESP_LOGI(TAG, "Status: received %u bytes in last 10 seconds", byte_count);
+    ESP_LOGI(TAG, "Status: received %u bytes in last 10 seconds", static_cast<unsigned>(byte_count));
     if (byte_count > 0) {
       char hex_buf[50] = {0};
       char ascii_buf[20] = {0};
@@ -239,9 +239,9 @@ void HLKLD2402Component::loop() {
       // ESP_LOGI(TAG, "Free heap now: %u", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
       // ESP_LOGI(TAG, "Free heap now: %u", esp_get_free_heap_size());
       #if defined(USE_ESP8266)
-        ESP_LOGI(TAG, "Free heap now: %u", system_get_free_heap_size());
+        ESP_LOGI(TAG, "Free heap now: %u", static_cast<unsigned>(system_get_free_heap_size()));
       #else
-        ESP_LOGI(TAG, "Free heap now: %u", esp_get_free_heap_size());
+        ESP_LOGI(TAG, "Free heap now: %u", static_cast<unsigned>(esp_get_free_heap_size()));
       #endif
 
 
@@ -1039,7 +1039,7 @@ void HLKLD2402Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK-LD2402:");
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", firmware_version_.c_str());
   ESP_LOGCONFIG(TAG, "  Max Distance: %.1f m", max_distance_);
-  ESP_LOGCONFIG(TAG, "  Timeout: %u s", timeout_);
+  ESP_LOGCONFIG(TAG, "  Timeout: %u s", static_cast<unsigned>(timeout_));
 }
 
 bool HLKLD2402Component::write_frame_(const std::vector<uint8_t> &frame) {
@@ -1154,7 +1154,7 @@ bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response, uint32_t
     yield();
   }
   
-  ESP_LOGW(TAG, "Response timeout after %u ms", timeout_ms);
+  ESP_LOGW(TAG, "Response timeout after %u ms", static_cast<unsigned>(timeout_ms));
   return false;
 }
 
@@ -1198,12 +1198,12 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
   if (response.size() >= 6) {
     // Standard response format
     value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
-    ESP_LOGD(TAG, "Parameter 0x%04X value: %u", param_id, value);
+    ESP_LOGD(TAG, "Parameter 0x%04X value: %u", param_id, static_cast<unsigned>(value));
     return true;
   } else if (response.size() >= 2) {
     // Shorter response, but possibly valid - use first 2 bytes
     value = response[0] | (response[1] << 8);
-    ESP_LOGW(TAG, "Short parameter response, using value: %u", value);
+    ESP_LOGW(TAG, "Short parameter response, using value: %u", static_cast<unsigned>(value));
     return true;
   }
   
@@ -1216,12 +1216,12 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
 }
 
 bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t timeout_ms) {
-  ESP_LOGI(TAG, "Setting work mode to %u (0x%X) with %ums timeout", mode, mode, timeout_ms);
+  ESP_LOGI(TAG, "Setting work mode to %u (0x%X) with %ums timeout", static_cast<unsigned>(mode), static_cast<unsigned>(mode), static_cast<unsigned>(timeout_ms));
   
   // Use production mode from manual instead of MODE_NORMAL
   if (mode == MODE_NORMAL) {
     mode = MODE_PRODUCTION;
-    ESP_LOGI(TAG, "Using production mode 0x%X", mode);
+    ESP_LOGI(TAG, "Using production mode 0x%X", static_cast<unsigned>(mode));
   }
   
   uint8_t mode_data[6];
@@ -1245,7 +1245,7 @@ bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t tim
   // Use the extended timeout for response
   std::vector<uint8_t> response;
   if (!read_response_(response, timeout_ms)) {
-    ESP_LOGE(TAG, "No response to mode command (timeout: %ums)", timeout_ms);
+    ESP_LOGE(TAG, "No response to mode command (timeout: %ums)", static_cast<unsigned>(timeout_ms));
     return false;
   }
   
@@ -1848,7 +1848,7 @@ void HLKLD2402Component::check_power_interference() {
   if (response.size() >= 10) {
     // Parameter value is at offset 6-9, little endian
     uint32_t value = response[6] | (response[7] << 8) | (response[8] << 16) | (response[9] << 24);
-    ESP_LOGI(TAG, "Power interference value: %u", value);
+    ESP_LOGI(TAG, "Power interference value: %u", static_cast<unsigned>(value));
     
     if (value == 0) {
       ESP_LOGI(TAG, "Power interference check not performed");
@@ -1860,7 +1860,7 @@ void HLKLD2402Component::check_power_interference() {
       ESP_LOGI(TAG, "Power interference detected");
       has_interference = true;
     } else {
-      ESP_LOGW(TAG, "Unknown power interference value: %u", value);
+      ESP_LOGW(TAG, "Unknown power interference value: %u", static_cast<unsigned>(value));
       has_interference = (value != 1);  // Consider anything other than 1 as interference
     }
   } else {
@@ -1914,7 +1914,7 @@ void HLKLD2402Component::factory_reset_with_params(float max_distance, int timeo
   
   // Convert max_distance from meters to decimeters (internal unit)
   uint32_t max_distance_dm = static_cast<uint32_t>(max_distance * 10.0f);
-  ESP_LOGI(TAG, "Setting max distance to %.1fm (%u dm)", max_distance, max_distance_dm);
+  ESP_LOGI(TAG, "Setting max distance to %.1fm (%u dm)", max_distance, static_cast<unsigned>(max_distance_dm));
   set_parameter_(PARAM_MAX_DISTANCE, max_distance_dm);
   delay(200);  // Add delay between parameter setting
   
@@ -2116,7 +2116,7 @@ bool HLKLD2402Component::exit_config_mode_() {
 }
 
 bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
-  ESP_LOGD(TAG, "Setting parameter 0x%04X to %u", param_id, value);
+  ESP_LOGD(TAG, "Setting parameter 0x%04X to %u", param_id, static_cast<unsigned>(value));
   
   uint8_t data[6];
   data[0] = param_id & 0xFF;
@@ -2199,7 +2199,7 @@ bool HLKLD2402Component::set_motion_threshold(uint8_t gate, float db_value) {
   bool success = set_parameter_(param_id, threshold);
   if (success) {
     ESP_LOGD(TAG, "Successfully set motion threshold for gate %d to %.1f dB (raw: %u)",
-             gate, db_value, threshold);
+             gate, db_value, static_cast<unsigned>(threshold));
   } else {
     ESP_LOGE(TAG, "Failed to set motion threshold");
   }
@@ -2242,7 +2242,7 @@ bool HLKLD2402Component::set_micromotion_threshold(uint8_t gate, float db_value)
   bool success = set_parameter_(param_id, threshold);
   if (success) {
     ESP_LOGI(TAG, "Successfully set micromotion threshold for gate %d to %.1f dB (raw: %u)",
-             gate, db_value, threshold);
+             gate, db_value, static_cast<unsigned>(threshold));
   } else {
     ESP_LOGE(TAG, "Failed to set micromotion threshold");
   }
@@ -2309,7 +2309,7 @@ bool HLKLD2402Component::get_parameters_batch_(const std::vector<uint16_t> &para
                      (response[offset+3] << 24);
       
       values.push_back(value);
-      ESP_LOGD(TAG, "Parameter 0x%04X value: %u (0x%08X)", param_ids[i], value, value);
+      ESP_LOGD(TAG, "Parameter 0x%04X value: %u (0x%08X)", param_ids[i], static_cast<unsigned>(value), static_cast<unsigned>(value));
     }
     return true;
   }
@@ -2349,7 +2349,7 @@ bool HLKLD2402Component::get_all_motion_thresholds() {
       float db_value = threshold_to_db_(values[i]);
       motion_threshold_values_[i] = db_value;
       
-      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, static_cast<unsigned>(values[i]), db_value);
       
       // Publish to sensor if available
       if (i < motion_threshold_sensors_.size() && motion_threshold_sensors_[i] != nullptr) {
@@ -2394,7 +2394,7 @@ bool HLKLD2402Component::get_all_micromotion_thresholds() {
       float db_value = threshold_to_db_(values[i]);
       micromotion_threshold_values_[i] = db_value;
       
-      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, static_cast<unsigned>(values[i]), db_value);
       
       // Publish to sensor if available
       if (i < micromotion_threshold_sensors_.size() && micromotion_threshold_sensors_[i] != nullptr) {
